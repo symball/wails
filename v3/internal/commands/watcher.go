@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/atterpac/refresh/engine"
@@ -37,7 +38,8 @@ func isInterruptError(err error) bool {
 }
 
 type WatcherOptions struct {
-	Config string `description:"The config file including path" default:"."`
+	AppArgs string `name:"appargs" description:"Extra app arguments"`
+	Config  string `description:"The config file including path" default:"."`
 }
 
 func Watcher(options *WatcherOptions) error {
@@ -62,6 +64,29 @@ func Watcher(options *WatcherOptions) error {
 	ensurePrimaryExitPolicy(devconfig.Config.ExecStruct)
 	if err := applyFrontendReadiness(&devconfig.Config, os.Getenv("FRONTEND_DEVSERVER_URL")); err != nil {
 		return err
+	}
+
+	if options.AppArgs != "" {
+		for idx, execAction := range devconfig.Config.ExecStruct {
+			if execAction.Cmd == "wails3 task run" {
+				clonedExec := execAction
+
+				escapedAppArgs := options.AppArgs
+				if runtime.GOOS == "windows" {
+					escapedAppArgs = fmt.Sprintf("%q", options.AppArgs)
+				} else {
+					escapedAppArgs =
+						"'" + strings.ReplaceAll(options.AppArgs, "'", `'"'"'`) + "'"
+				}
+
+				clonedExec.Cmd = fmt.Sprintf(
+					"wails3 task run -appargs=%s",
+					escapedAppArgs,
+				)
+				devconfig.Config.ExecStruct[idx] = clonedExec
+				fmt.Printf("Executing %s\n", clonedExec.Cmd)
+			}
+		}
 	}
 
 	watcherEngine, err := engine.NewEngineFromConfig(devconfig.Config)
