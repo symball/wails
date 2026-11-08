@@ -49,6 +49,7 @@ type RunTaskOptions struct {
 	Color            bool   `name:"c" description:"colored output. Enabled by default. Set flag to false or use NO_COLOR=1 to disable" default:"true"`
 	Concurrency      int    `name:"C" description:"limit number tasks to run concurrently"`
 	Interval         int64  `name:"interval" description:"interval to watch for changes"`
+	AppArgs          string `name:"appargs" description:"Additional arguments to postfix to tasks using app_args"`
 }
 
 func RunTask(options *RunTaskOptions, otherArgs []string) error {
@@ -187,6 +188,19 @@ func RunTask(options *RunTaskOptions, otherArgs []string) error {
 					})
 				}
 			}
+		}
+	}
+
+	// Forward passthrough args after `--` into Task's special CLI_ARGS variable.
+	if len(options.AppArgs) > 0 {
+		call.Vars.Set("CLI_ARGS", ast.Var{
+			Value: options.AppArgs,
+		})
+
+		if e.Taskfile != nil {
+			e.Taskfile.Vars.Set("CLI_ARGS", ast.Var{
+				Value: options.AppArgs,
+			})
 		}
 	}
 

@@ -2,8 +2,9 @@ package commands
 
 import (
 	"fmt"
-	"github.com/google/shlex"
 	"strings"
+
+	"github.com/google/shlex"
 )
 
 // resolveApplicationArguments parses the compatibility string exactly once.

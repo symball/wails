@@ -3,8 +3,7 @@ package application
 import (
 	"context"
 	"errors"
-
-	"encoding/json"
+	"fmt"
 
 	"github.com/wailsapp/wails/v3/pkg/errs"
 )
@@ -123,12 +122,53 @@ func (m *MessageProcessor) processCallMethod(ctx context.Context, req *RuntimeRe
 			}
 		}
 
-		jsonArgs, _ := json.Marshal(options.Args)
+		jsonArgs, err := marshalSafely(options.Args)
+		if err != nil {
+			m.Error(
+				"Binding call arguments could not be JSON encoded",
+				"id",
+				*callID,
+				"method",
+				methodRef,
+				"args-type",
+				fmt.Sprintf("%T", options.Args),
+				"error",
+				err,
+			)
+			return nil, errs.NewBindingCallFailedErrorf(
+				"could not encode binding arguments: %v",
+				err,
+			)
+		}
 		var result any
 		defer func() {
-			var jsonResult []byte
-			jsonResult, _ = json.Marshal(result)
-			m.Debug("Binding call complete:", "id", *callID, "method", boundMethod, "args", string(jsonArgs), "result", string(jsonResult))
+			jsonResult, marshalErr := marshalSafely(result)
+			if err != nil {
+				m.Error(
+					"Binding call result could not be JSON encoded",
+					"id",
+					*callID,
+					"method",
+					boundMethod.Name,
+					"result-type",
+					fmt.Sprintf("%T", result),
+					"error",
+					marshalErr,
+				)
+				return
+			}
+
+			m.Debug(
+				"Binding call complete:",
+				"id",
+				*callID,
+				"method",
+				boundMethod,
+				"args",
+				string(jsonArgs),
+				"result",
+				string(jsonResult),
+			)
 		}()
 
 		// Set the context values for the window
@@ -140,15 +180,31 @@ func (m *MessageProcessor) processCallMethod(ctx context.Context, req *RuntimeRe
 		if cerr := (*CallError)(nil); errors.As(err, &cerr) {
 			switch cerr.Kind {
 			case ReferenceError, TypeError:
-				return nil, errs.WrapBindingCallFailedErrorf(cerr, "failed to call binding")
+				return nil, errs.WrapBindingCallFailedErrorf(
+					cerr,
+					"failed to call binding",
+				)
 			case RuntimeError:
-
-				return nil, errs.WrapBindingCallFailedErrorf(cerr, "Bound method returned an error")
+				return nil, errs.WrapBindingCallFailedErrorf(
+					cerr,
+					"bound method returned an error",
+				)
 			}
 		}
 		if err != nil {
-			return nil, errs.WrapBindingCallFailedErrorf(err, "failed to call binding")
+			return nil, errs.WrapBindingCallFailedErrorf(
+				err,
+				"failed to call binding",
+			)
 		}
+
+		if _, marshalErr := marshalSafely(result); marshalErr != nil {
+			return nil, errs.NewBindingCallFailedErrorf(
+				"bound method returned a value that could not be encoded as JSON: %v",
+				marshalErr,
+			)
+		}
+
 		return result, nil
 
 	default:

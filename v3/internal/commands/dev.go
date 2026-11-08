@@ -13,7 +13,7 @@ const defaultVitePort = 9245
 const wailsVitePort = "WAILS_VITE_PORT"
 
 type DevOptions struct {
-	AppArgs         []string `name:"appargs" description:"Application arguments as one shell-quoted string; prefer -- followed by arguments"`
+	AppArgs         string `name:"appargs" description:"Application arguments as one shell-quoted string; prefer -- followed by arguments"`
 	applicationArgs []string
 	Verbose         bool   `name:"verbose" description:"Stream build commands and output during development"`
 	Quiet           bool   `name:"quiet" description:"Only show development failures"`
@@ -33,13 +33,8 @@ type DevOptions struct {
 }
 
 func Dev(options *DevOptions, args ...string) error {
-	resolved, err := resolveApplicationArguments(options.AppArgs, args)
-	if err != nil {
-		return err
-	}
 	copyOptions := *options
 	options = &copyOptions
-	options.applicationArgs = resolved
 	active, err := activeManifestProject()
 	if err != nil {
 		return err
@@ -47,9 +42,9 @@ func Dev(options *DevOptions, args ...string) error {
 	if active {
 		return runManifestDev(options)
 	}
-	if options.applicationArgs != nil {
-		return fmt.Errorf("development application arguments require an active wails.yaml and WAILS_EXP_USE_WAKE=1")
-	}
+	//if options.applicationArgs != nil {
+	//	return fmt.Errorf("development application arguments require an active wails.yaml and WAILS_EXP_USE_WAKE=1")
+	//}
 	if options.Profile != "" || options.Target != "" || options.Plan || options.Host != "" || options.Device != "" || options.Emulator != "" || options.Destination != "" || options.Verbose || options.Quiet {
 		return fmt.Errorf("--profile, --target, --plan, --host, --device, --emulator, --destination, --verbose and --quiet require an active %s", "wails.yaml")
 	}
@@ -91,6 +86,7 @@ func Dev(options *DevOptions, args ...string) error {
 	}
 
 	return Watcher(&WatcherOptions{
-		Config: options.Config,
+		AppArgs: options.AppArgs,
+		Config:  options.Config,
 	})
 }
